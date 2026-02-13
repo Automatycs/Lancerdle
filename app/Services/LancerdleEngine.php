@@ -6,7 +6,7 @@ use App\Models\Mech;
 
 class LancerdleEngine {
 
-	public function compare(Mech $goal, Mech $attempt) {
+	public static function compare(Mech $goal, Mech $attempt) {
 		$result = [
 			'result' => ($goal === $attempt) ? true : false,
 			'lcp' => ($goal->lcp === $attempt->lcp) ? true : false,
@@ -19,17 +19,17 @@ class LancerdleEngine {
 			'evasion' => $goal->evasion - $attempt->evasion,
 			'e_defense' => $goal->e_defense - $attempt->e_defense,
 			'sensors' => $goal->sensors - $attempt->sensors,
-			'tech_attack' => $this->techAttackDiff($goal->tech_attack, $attempt->tech_attack),
+			'tech_attack' => self::techAttackDiff($goal->tech_attack, $attempt->tech_attack),
 			'save_target' => $goal->save_target - $attempt->save_target,
 			'speed' => $goal->speed - $attempt->speed,
 			'system_points' => $goal->system_points - $attempt->system_points,
-			'mounts' => $this->mountDiff($goal->mounts, $attempt->mounts),
+			'mounts' => self::mountDiff($goal->mounts, $attempt->mounts),
 		];
 
-		return json_encode($result);
+		return $result;
 	}
 
-	private function techAttackDiff(int $goal, int $attempt) {
+	private static function techAttackDiff(int $goal, int $attempt) {
 		if ($goal < $attempt) {
 			return 1;
 		} elseif ($goal > $attempt) {
@@ -38,7 +38,7 @@ class LancerdleEngine {
 		return 0;
 	}
 
-	private function mountDiff(string $goal, string $attempt) {
+	private static function mountDiff(string $goal, string $attempt) {
 		$goal = 0;
 
 		if (substr_count($goal, 'Main') == substr_count($attempt, 'Main')) {

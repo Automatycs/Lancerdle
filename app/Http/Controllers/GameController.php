@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attempt;
 use App\Models\Daily;
 use App\Models\Game;
 use App\Models\Mech;
@@ -16,9 +17,7 @@ class GameController extends Controller
 		$target = Daily::where('date', $request->date)->where('pool', $request->pool)->first();
 
 		if (!$target) {
-			return response()->json([
-				'message' => 'error'
-			]);
+			return response()->json($request);
 		}
 
 		if (Auth::user()) {
@@ -40,7 +39,7 @@ class GameController extends Controller
 				$guest_id = request()->cookie('guest_id');
 			}
 
-			if (Game::where('guest_id', $guest_id)->where('daily_id', $target->id->first)) {
+			if (Game::where('guest_id', $guest_id)->where('daily_id', $target->id)->first()) {
 				$game = Game::where('guest_id', $guest_id)->where('daily_id', $target->id)->first();	
 			} else {
 				$game = Game::create([
@@ -51,9 +50,13 @@ class GameController extends Controller
 				]);
 			}
 		}
-		$game->load('tries');
+		$game->load('attempts');
 
-		return response()->json($game);
+		return response()->json([
+			'game' => $game,
+			'state' => $game->state,
+			'attempts' => $game->attempts()->orderBy('attempt_number')->get(),
+		]);
 	}
 
 	public function guess(Request $request) {
@@ -62,14 +65,35 @@ class GameController extends Controller
 			'guess' => 'required|string|exists:mechs,name',
 		]);
 
-		$game = Game::firstOrFail($request->game_id);
+		$game = Game::where('id', $request->game_id)->firstOrFail();
 		if ($game->state !== 'ongoing') {
-			return response()->json($game);
+			return response()->json([
+				'state' => $game->state,
+				'attempts' => $game->attempts()->orderBy('attempt_number')->get(),
+			]);
 		}
 		$goal = $game->daily()->mech()->get();
-		$attempt = Mech::firstOrFail()->where('name', $request->guess);
+		$guess = Mech::where('name', $request->guess)->firstOrFail();
 
-		$result = LancerdleEngine::compare()
+		$result = LancerdleEngine::compare($goal, $guess);
 		
+		$attempt = Attempt::create([
+			'guess' => $request->$guess,
+			'attempt_number' => $game->attempts()->count() + 1,
+			'game_id' => $game->id,
+			'response' => json_encode($result),
+		]);
+
+		if ($result['result'] === true) {
+			$game->update(['state' => 'won']);
+		} elseif ($attempt->attempt_number >= 6) {
+			$game->update(['state' => 'lost']);
+		}
+		$game->load('attempts')->orderBy('attempt_number');
+
+		return response()->json([
+			'state' => $game->state,
+			'attempts' => $game->attempts()->orderBy('attempt_number')->get(),
+		]);
 	}
 }
